@@ -7,6 +7,7 @@
 - 📡 從Redis讀取感測器資料
 - 🔄 自動處理和解碼中文感測器資訊
 - 📨 批量發布資料到MQTT主題
+- 🏷️ 自動設備註冊功能
 - 🔧 靈活的配置管理
 - 📊 完整的日誌記錄
 - ⚡ 自動重連機制
@@ -69,6 +70,12 @@ LOG_LEVEL=info
 # 感測器配置
 SENSOR_DATA_KEY=SENINF
 DEVICE_TOPIC_PREFIX=device
+
+# 設備註冊配置
+DEVICE_REGISTRATION_TOPIC=device/name
+DEVICE_SN_KEY=DeviceSN
+DEVICE_IP_KEY=ip
+AUTO_REGISTER_ON_START=true
 ```
 
 ## 使用方法
@@ -90,12 +97,30 @@ npm test
 
 ## MQTT主題結構
 
+### 感測器資料主題
 服務將感測器資料發布到以下主題格式：
 ```
 device/{devicename}/seninf
 ```
 
 其中 `{devicename}` 是感測器的序號（SN）。
+
+### 設備註冊主題
+服務啟動時會自動發布設備註冊資訊到：
+```
+device/name
+```
+
+設備註冊訊息格式：
+```json
+{
+  "deviceSN": "R02b5165",
+  "ip": "192.168.0.13",
+  "clientId": "mqtt-push-service",
+  "registeredAt": "2023-12-07T10:30:00.000Z",
+  "action": "register"
+}
+```
 
 ## 資料格式
 

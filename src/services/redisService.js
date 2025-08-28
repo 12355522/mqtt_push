@@ -93,6 +93,65 @@ class RedisService {
   }
 
   /**
+   * 讀取設備資訊
+   * @returns {Promise<Object>} 設備資訊物件
+   */
+  async getDeviceInfo() {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      // 同時讀取DeviceSN和ip
+      const [deviceSN, ip] = await Promise.all([
+        this.client.get('DeviceSN'),
+        this.client.get('ip')
+      ]);
+
+      if (!deviceSN) {
+        throw new Error('Redis中未找到DeviceSN');
+      }
+
+      if (!ip) {
+        throw new Error('Redis中未找到ip');
+      }
+
+      const deviceData = {
+        deviceSN,
+        ip
+      };
+
+      logger.info('成功讀取設備資訊:', deviceData);
+      return deviceData;
+
+    } catch (error) {
+      logger.error('讀取設備資訊失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 讀取單個鍵值
+   * @param {string} key - Redis鍵名
+   * @returns {Promise<string|null>} 鍵值
+   */
+  async getValue(key) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      const value = await this.client.get(key);
+      logger.debug(`讀取鍵 ${key}:`, value);
+      
+      return value;
+    } catch (error) {
+      logger.error(`讀取鍵 ${key} 失敗:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 檢查Redis連接狀態
    * @returns {boolean} 連接狀態
    */

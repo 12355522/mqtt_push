@@ -61,7 +61,13 @@ class Config {
       
       // 感測器配置
       SENSOR_DATA_KEY: process.env.SENSOR_DATA_KEY,
-      DEVICE_TOPIC_PREFIX: process.env.DEVICE_TOPIC_PREFIX
+      DEVICE_TOPIC_PREFIX: process.env.DEVICE_TOPIC_PREFIX,
+      
+      // 設備註冊配置
+      DEVICE_REGISTRATION_TOPIC: process.env.DEVICE_REGISTRATION_TOPIC,
+      DEVICE_SN_KEY: process.env.DEVICE_SN_KEY,
+      DEVICE_IP_KEY: process.env.DEVICE_IP_KEY,
+      AUTO_REGISTER_ON_START: process.env.AUTO_REGISTER_ON_START === 'true'
     };
 
     // 移除undefined值
@@ -129,7 +135,13 @@ class Config {
       
       // 感測器預設值
       SENSOR_DATA_KEY: 'SENINF',
-      DEVICE_TOPIC_PREFIX: 'device'
+      DEVICE_TOPIC_PREFIX: 'device',
+      
+      // 設備註冊預設值
+      DEVICE_REGISTRATION_TOPIC: 'device/name',
+      DEVICE_SN_KEY: 'DeviceSN',
+      DEVICE_IP_KEY: 'ip',
+      AUTO_REGISTER_ON_START: true
     };
 
     Object.keys(defaults).forEach(key => {

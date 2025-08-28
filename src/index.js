@@ -61,6 +61,11 @@ class MqttPushService {
       this.isRunning = true;
       logger.info('MQTT推送服務已啟動');
 
+      // 執行設備註冊（如果啟用）
+      if (this.config.get('AUTO_REGISTER_ON_START')) {
+        await this.registerDevice();
+      }
+
       // 立即執行一次數據同步
       await this.processSensorData();
 
@@ -74,6 +79,37 @@ class MqttPushService {
       logger.error('啟動服務失敗:', error);
       await this.stop();
       throw error;
+    }
+  }
+
+  /**
+   * 註冊設備到伺服器
+   */
+  async registerDevice() {
+    try {
+      logger.info('開始設備註冊...');
+
+      // 檢查連接狀態
+      if (!this.redisService.isReady()) {
+        throw new Error('Redis未就緒，無法讀取設備資訊');
+      }
+
+      if (!this.mqttService.isReady()) {
+        throw new Error('MQTT未就緒，無法發送註冊資訊');
+      }
+
+      // 從Redis讀取設備資訊
+      const deviceData = await this.redisService.getDeviceInfo();
+      
+      // 發布設備註冊資訊到 device/name 主題
+      await this.mqttService.publishDeviceRegistration(deviceData);
+
+      logger.info(`設備註冊完成 - SN: ${deviceData.deviceSN}, IP: ${deviceData.ip}`);
+
+    } catch (error) {
+      logger.error('設備註冊失敗:', error);
+      // 註冊失敗不應該阻止服務啟動，只記錄錯誤
+      this.stats.errors++;
     }
   }
 
@@ -248,6 +284,13 @@ class MqttPushService {
   }
 
   /**
+   * 手動執行設備註冊
+   */
+  async manualRegisterDevice() {
+    await this.registerDevice();
+  }
+
+  /**
    * 健康檢查
    * @returns {Object} 健康狀態
    */
@@ -258,6 +301,11 @@ class MqttPushService {
       services: {
         redis: this.redisService?.isReady() || false,
         mqtt: this.mqttService?.isReady() || false
+      },
+      config: {
+        autoRegister: this.config.get('AUTO_REGISTER_ON_START'),
+        deviceRegistrationTopic: this.config.get('DEVICE_REGISTRATION_TOPIC'),
+        pollInterval: this.config.get('POLL_INTERVAL')
       },
       stats: this.getStats()
     };

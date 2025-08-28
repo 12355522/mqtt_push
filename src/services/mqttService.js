@@ -168,6 +168,49 @@ class MqttService {
   }
 
   /**
+   * 發布設備註冊資訊
+   * @param {Object} deviceData - 設備資料 {deviceSN, ip}
+   */
+  async publishDeviceRegistration(deviceData) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('MQTT未連接');
+      }
+
+      const { deviceSN, ip } = deviceData;
+      
+      if (!deviceSN || !ip) {
+        throw new Error('設備資料不完整，需要deviceSN和ip');
+      }
+
+      const topic = 'device/name';
+      const payload = JSON.stringify({
+        deviceSN,
+        ip,
+        clientId: this.config.MQTT_CLIENT_ID,
+        registeredAt: new Date().toISOString(),
+        action: 'register'
+      });
+
+      return new Promise((resolve, reject) => {
+        this.client.publish(topic, payload, { qos: 1, retain: false }, (error) => {
+          if (error) {
+            logger.error('發布設備註冊失敗:', error);
+            reject(error);
+          } else {
+            logger.info(`設備註冊成功 - SN: ${deviceSN}, IP: ${ip}`);
+            resolve();
+          }
+        });
+      });
+
+    } catch (error) {
+      logger.error('發布設備註冊時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 發布服務狀態
    * @param {string} status - 狀態 (online/offline)
    */
