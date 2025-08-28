@@ -62,9 +62,9 @@ class MqttPushService {
       logger.info('MQTT推送服務已啟動');
 
       // 執行設備註冊（如果啟用）
-      if (this.config.get('AUTO_REGISTER_ON_START')) {
+     
         await this.registerDevice();
-      }
+     
 
       // 立即執行一次數據同步
       await this.processSensorData();
