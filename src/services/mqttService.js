@@ -133,32 +133,48 @@ class MqttService {
 
   /**
    * 批量發布多個設備的感測器資料（使用統一設備名稱）
+   * 將所有感測器資料合併為一個完整的設備感測器列表
    * @param {Array} sensorDataArray - 感測器資料陣列
    * @param {string} deviceName - 統一的設備名稱
    */
   async publishBatchSensorDataWithDeviceName(sensorDataArray, deviceName) {
-    const publishPromises = [];
-    
-    for (const sensorData of sensorDataArray) {
-      publishPromises.push(
-        this.publishSensorData(deviceName, sensorData).catch(error => {
-          logger.error(`發布設備 ${deviceName} 資料失敗:`, error);
-          return { deviceName, error: error.message };
-        })
-      );
-    }
-
     try {
-      const results = await Promise.allSettled(publishPromises);
-      const failed = results.filter(result => result.status === 'rejected' || result.value?.error);
-      
-      if (failed.length > 0) {
-        logger.warn(`批量發布完成，${failed.length}個感測器發布失敗`);
-      } else {
-        logger.info(`成功批量發布 ${sensorDataArray.length} 個感測器資料到設備 ${deviceName}`);
+      if (!this.isConnected || !this.client) {
+        throw new Error('MQTT未連接');
       }
-      
-      return results;
+
+      // 合併所有感測器資料為完整的設備感測器列表
+      const deviceSensorList = {
+        device_info: {
+          device_name: deviceName,
+          total_sensors: sensorDataArray.length,
+          status: 'active'
+        },
+        sensors: sensorDataArray.map(sensorData => ({
+          device_info: sensorData.device_info,
+          sensor_values: sensorData.sensor_values,
+          profile: sensorData.profile,
+          metadata: sensorData.metadata
+        })),
+        timestamp: new Date().toISOString(),
+        published_by: this.config.MQTT_CLIENT_ID
+      };
+
+      const topic = `${this.config.DEVICE_TOPIC_PREFIX}/${deviceName}/seninf`;
+      const payload = JSON.stringify(deviceSensorList);
+
+      return new Promise((resolve, reject) => {
+        this.client.publish(topic, payload, { qos: 1, retain: false }, (error) => {
+          if (error) {
+            logger.error(`發布設備感測器列表失敗 [${topic}]:`, error);
+            reject(error);
+          } else {
+            logger.info(`成功發布設備 ${deviceName} 的完整感測器列表，共 ${sensorDataArray.length} 個感測器`);
+            resolve([{ status: 'fulfilled', deviceName }]);
+          }
+        });
+      });
+
     } catch (error) {
       logger.error('批量發布感測器資料失敗:', error);
       throw error;
