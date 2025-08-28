@@ -152,6 +152,80 @@ class RedisService {
   }
 
   /**
+   * 讀取單個感測器的數值資料
+   * @param {string} sensorId - 感測器序號
+   * @returns {Promise<Object|null>} 感測器數值資料
+   */
+  async getSensorValue(sensorId) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      const data = await this.client.get(sensorId);
+      if (!data) {
+        logger.debug(`感測器 ${sensorId} 未找到數值資料`);
+        return null;
+      }
+
+      // 解析JSON數據
+      const sensorValue = JSON.parse(data);
+      logger.debug(`成功讀取感測器 ${sensorId} 數值:`, sensorValue);
+      
+      return {
+        sensorId,
+        values: sensorValue,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      logger.error(`讀取感測器 ${sensorId} 數值失敗:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 批量讀取多個感測器的數值資料
+   * @param {Array} sensorIds - 感測器序號陣列
+   * @returns {Promise<Array>} 感測器數值資料陣列
+   */
+  async getBatchSensorValues(sensorIds) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      // 使用mget批量讀取
+      const values = await this.client.mGet(sensorIds);
+      const results = [];
+
+      for (let i = 0; i < sensorIds.length; i++) {
+        if (values[i]) {
+          try {
+            const sensorValue = JSON.parse(values[i]);
+            results.push({
+              sensorId: sensorIds[i],
+              values: sensorValue,
+              timestamp: new Date().toISOString()
+            });
+          } catch (parseError) {
+            logger.warn(`解析感測器 ${sensorIds[i]} 數值失敗:`, parseError);
+          }
+        } else {
+          logger.debug(`感測器 ${sensorIds[i]} 未找到數值資料`);
+        }
+      }
+
+      logger.info(`批量讀取完成，成功讀取 ${results.length}/${sensorIds.length} 個感測器數值`);
+      return results;
+
+    } catch (error) {
+      logger.error('批量讀取感測器數值失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 檢查Redis連接狀態
    * @returns {boolean} 連接狀態
    */

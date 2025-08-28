@@ -228,6 +228,78 @@ class MqttService {
   }
 
   /**
+   * 發布單個感測器數值資料
+   * @param {string} deviceName - 設備名稱
+   * @param {string} sensorId - 感測器序號
+   * @param {Object} sensorValue - 感測器數值資料
+   */
+  async publishSensorValue(deviceName, sensorId, sensorValue) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('MQTT未連接');
+      }
+
+      const topic = `${this.config.DEVICE_TOPIC_PREFIX}/${deviceName}/${sensorId}`;
+      const payload = JSON.stringify({
+        ...sensorValue.values,
+        timestamp: new Date().toISOString(),
+        sensorId: sensorId,
+        published_by: this.config.MQTT_CLIENT_ID
+      });
+
+      return new Promise((resolve, reject) => {
+        this.client.publish(topic, payload, { qos: 1, retain: false }, (error) => {
+          if (error) {
+            logger.error(`發布感測器數值失敗 [${topic}]:`, error);
+            reject(error);
+          } else {
+            logger.debug(`成功發布感測器數值到 ${topic}`);
+            resolve();
+          }
+        });
+      });
+
+    } catch (error) {
+      logger.error('發布感測器數值時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 批量發布多個感測器的數值資料
+   * @param {string} deviceName - 設備名稱
+   * @param {Array} sensorValues - 感測器數值資料陣列
+   */
+  async publishBatchSensorValues(deviceName, sensorValues) {
+    const publishPromises = [];
+    
+    for (const sensorValue of sensorValues) {
+      publishPromises.push(
+        this.publishSensorValue(deviceName, sensorValue.sensorId, sensorValue).catch(error => {
+          logger.error(`發布感測器 ${sensorValue.sensorId} 數值失敗:`, error);
+          return { sensorId: sensorValue.sensorId, error: error.message };
+        })
+      );
+    }
+
+    try {
+      const results = await Promise.allSettled(publishPromises);
+      const failed = results.filter(result => result.status === 'rejected' || result.value?.error);
+      
+      if (failed.length > 0) {
+        logger.warn(`批量發布完成，${failed.length}個感測器數值發布失敗`);
+      } else {
+        logger.info(`成功批量發布 ${sensorValues.length} 個感測器數值到設備 ${deviceName}`);
+      }
+      
+      return results;
+    } catch (error) {
+      logger.error('批量發布感測器數值失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 發布設備註冊資訊
    * @param {Object} deviceData - 設備資料 {deviceSN, ip}
    */

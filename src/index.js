@@ -3,6 +3,7 @@ const MqttService = require('./services/mqttService');
 const SensorProcessor = require('./utils/sensorProcessor');
 const Config = require('./utils/config');
 const logger = require('./utils/logger');
+const { getUnitByCode } = require('./utils/unit');
 
 class MqttPushService {
   constructor() {
@@ -180,10 +181,70 @@ class MqttPushService {
 
       logger.info(`成功處理並發布 ${processedData.length} 個感測器資料`);
 
+      // 同時處理個別感測器數值
+      await this.processIndividualSensorValues();
+
     } catch (error) {
       logger.error('處理感測器資料時發生錯誤:', error);
       this.stats.errors++;
       throw error;
+    }
+  }
+
+  /**
+   * 處理個別感測器數值資料
+   */
+  async processIndividualSensorValues() {
+    try {
+      // 檢查服務狀態
+      if (!this.isRunning) {
+        return;
+      }
+
+      // 檢查連接狀態
+      if (!this.redisService.isReady() || !this.mqttService.isReady()) {
+        logger.debug('服務未就緒，跳過個別感測器數值處理');
+        return;
+      }
+
+      // 讀取設備資訊
+      const deviceData = await this.redisService.getDeviceInfo();
+      const deviceName = deviceData.deviceSN;
+
+      // 從SENINF獲取感測器列表，取得所有感測器序號
+      const sensorDataKey = this.config.get('SENSOR_DATA_KEY');
+      const rawSensorData = await this.redisService.getSensorData(sensorDataKey);
+      
+      if (!rawSensorData || rawSensorData.length === 0) {
+        logger.debug('未找到感測器列表，跳過個別感測器數值處理');
+        return;
+      }
+
+      // 提取所有感測器序號
+      const sensorIds = rawSensorData.map(sensor => sensor.SN).filter(sn => sn);
+      
+      if (sensorIds.length === 0) {
+        logger.debug('未找到有效的感測器序號');
+        return;
+      }
+
+      // 批量讀取所有感測器的數值
+      const sensorValues = await this.redisService.getBatchSensorValues(sensorIds);
+      
+      if (sensorValues.length === 0) {
+        logger.debug('未找到感測器數值資料');
+        return;
+      }
+
+      // 發布個別感測器數值到對應主題
+      const results = await this.mqttService.publishBatchSensorValues(deviceName, sensorValues);
+      
+      logger.info(`成功處理並發布 ${sensorValues.length} 個個別感測器數值`);
+
+    } catch (error) {
+      logger.error('處理個別感測器數值時發生錯誤:', error);
+      this.stats.errors++;
+      // 不拋出錯誤，避免影響主要的感測器資料處理流程
     }
   }
 
