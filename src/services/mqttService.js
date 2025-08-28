@@ -132,15 +132,59 @@ class MqttService {
   }
 
   /**
-   * 批量發布多個設備的感測器資料
+   * 批量發布多個設備的感測器資料（使用統一設備名稱）
+   * @param {Array} sensorDataArray - 感測器資料陣列
+   * @param {string} deviceName - 統一的設備名稱
+   */
+  async publishBatchSensorDataWithDeviceName(sensorDataArray, deviceName) {
+    const publishPromises = [];
+    
+    for (const sensorData of sensorDataArray) {
+      publishPromises.push(
+        this.publishSensorData(deviceName, sensorData).catch(error => {
+          logger.error(`發布設備 ${deviceName} 資料失敗:`, error);
+          return { deviceName, error: error.message };
+        })
+      );
+    }
+
+    try {
+      const results = await Promise.allSettled(publishPromises);
+      const failed = results.filter(result => result.status === 'rejected' || result.value?.error);
+      
+      if (failed.length > 0) {
+        logger.warn(`批量發布完成，${failed.length}個感測器發布失敗`);
+      } else {
+        logger.info(`成功批量發布 ${sensorDataArray.length} 個感測器資料到設備 ${deviceName}`);
+      }
+      
+      return results;
+    } catch (error) {
+      logger.error('批量發布感測器資料失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 批量發布多個設備的感測器資料（舊版本，保持向後兼容）
    * @param {Array} sensorDataArray - 感測器資料陣列
    */
   async publishBatchSensorData(sensorDataArray) {
     const publishPromises = [];
     
     for (const sensorData of sensorDataArray) {
-      // 使用設備序號作為設備名稱，如果沒有則使用ADDRESS
-      const deviceName = sensorData.SN || `device_${sensorData.ADDRESS}`;
+      // 嘗試從不同位置獲取設備名稱
+      let deviceName;
+      if (sensorData.device_info && sensorData.device_info.serial_number) {
+        deviceName = sensorData.device_info.serial_number;
+      } else if (sensorData.SN) {
+        deviceName = sensorData.SN;
+      } else if (sensorData.ADDRESS) {
+        deviceName = `device_${sensorData.ADDRESS}`;
+      } else {
+        deviceName = 'unknown_device';
+        logger.warn('無法確定設備名稱，使用預設值:', deviceName);
+      }
       
       publishPromises.push(
         this.publishSensorData(deviceName, sensorData).catch(error => {

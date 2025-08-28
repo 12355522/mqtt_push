@@ -168,8 +168,12 @@ class MqttPushService {
         return;
       }
 
-      // 發布到MQTT
-      const results = await this.mqttService.publishBatchSensorData(processedData);
+      // 讀取設備資訊以獲取統一的設備名稱
+      const deviceData = await this.redisService.getDeviceInfo();
+      const deviceName = deviceData.deviceSN;
+
+      // 發布到MQTT，使用統一的設備名稱
+      const results = await this.mqttService.publishBatchSensorDataWithDeviceName(processedData, deviceName);
       
       // 更新統計資訊
       this.updateStats(processedData.length, results);
