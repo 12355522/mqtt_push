@@ -1,0 +1,24 @@
+{
+  "name": "mqtt-push-service",
+  "version": "1.0.0",
+  "description": "MQTT推送服務，從Redis讀取感測器資料並發布到MQTT主題",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest"
+  },
+  "keywords": ["mqtt", "redis", "sensor", "iot"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "mqtt": "^5.3.4",
+    "redis": "^4.6.10",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  }
+}

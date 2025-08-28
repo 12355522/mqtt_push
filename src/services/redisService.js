@@ -1,0 +1,136 @@
+const redis = require('redis');
+const logger = require('../utils/logger');
+
+class RedisService {
+  constructor(config) {
+    this.config = config;
+    this.client = null;
+    this.isConnected = false;
+  }
+
+  /**
+   * 初始化Redis連接
+   */
+  async connect() {
+    try {
+      this.client = redis.createClient({
+        host: this.config.REDIS_HOST || '127.0.0.1',
+        port: this.config.REDIS_PORT || 6379,
+        password: this.config.REDIS_PASSWORD || undefined,
+        database: this.config.REDIS_DB || 0,
+        retry_strategy: (options) => {
+          if (options.error && options.error.code === 'ECONNREFUSED') {
+            logger.error('Redis服務器拒絕連接');
+            return new Error('Redis服務器拒絕連接');
+          }
+          if (options.total_retry_time > 1000 * 60 * 60) {
+            logger.error('Redis重試時間超過1小時');
+            return new Error('Redis重試時間超過1小時');
+          }
+          if (options.attempt > 10) {
+            logger.error('Redis重試次數超過10次');
+            return undefined;
+          }
+          // 重試間隔遞增
+          return Math.min(options.attempt * 100, 3000);
+        }
+      });
+
+      this.client.on('error', (err) => {
+        logger.error('Redis連接錯誤:', err);
+        this.isConnected = false;
+      });
+
+      this.client.on('connect', () => {
+        logger.info('Redis連接成功');
+        this.isConnected = true;
+      });
+
+      this.client.on('reconnecting', () => {
+        logger.info('Redis重新連接中...');
+        this.isConnected = false;
+      });
+
+      this.client.on('end', () => {
+        logger.info('Redis連接已關閉');
+        this.isConnected = false;
+      });
+
+      await this.client.connect();
+      logger.info('Redis服務初始化完成');
+      
+    } catch (error) {
+      logger.error('Redis連接失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 讀取感測器資料
+   * @param {string} key - Redis鍵名
+   * @returns {Promise<Array>} 感測器資料陣列
+   */
+  async getSensorData(key = 'SENINF') {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      const data = await this.client.get(key);
+      if (!data) {
+        logger.warn(`Redis中未找到鍵: ${key}`);
+        return [];
+      }
+
+      const sensorData = JSON.parse(data);
+      logger.debug(`成功讀取感測器資料，共${sensorData.length}個設備`);
+      
+      return sensorData;
+    } catch (error) {
+      logger.error('讀取感測器資料失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 檢查Redis連接狀態
+   * @returns {boolean} 連接狀態
+   */
+  isReady() {
+    return this.isConnected && this.client && this.client.isReady;
+  }
+
+  /**
+   * 關閉Redis連接
+   */
+  async disconnect() {
+    try {
+      if (this.client) {
+        await this.client.quit();
+        logger.info('Redis連接已關閉');
+      }
+    } catch (error) {
+      logger.error('關閉Redis連接時發生錯誤:', error);
+    }
+  }
+
+  /**
+   * 測試Redis連接
+   */
+  async ping() {
+    try {
+      if (!this.client) {
+        throw new Error('Redis客戶端未初始化');
+      }
+      
+      const result = await this.client.ping();
+      logger.debug('Redis ping測試:', result);
+      return result === 'PONG';
+    } catch (error) {
+      logger.error('Redis ping測試失敗:', error);
+      return false;
+    }
+  }
+}
+
+module.exports = RedisService;
