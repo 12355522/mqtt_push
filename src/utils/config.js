@@ -126,7 +126,7 @@ class Config {
       REDIS_DB: 0,
       
       // MQTT預設值
-      MQTT_BROKER_URL: 'mqtt://localhost:1883',
+      MQTT_BROKER_URL: 'mqtt://l92.168.1.101:1883',
       MQTT_CLIENT_ID: `mqtt-push-service-${Date.now()}`,
       
       // 服務預設值
