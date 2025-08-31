@@ -186,6 +186,9 @@ class MqttPushService {
 
       logger.info(`成功處理並發布 ${processedData.length} 個感測器資料`);
 
+      // 處理並發布飼養數據
+      await this.processFeedingData(deviceName);
+
       // 同時處理個別感測器數值
       await this.processIndividualSensorValues();
 
@@ -193,6 +196,48 @@ class MqttPushService {
       logger.error('處理感測器資料時發生錯誤:', error);
       this.stats.errors++;
       throw error;
+    }
+  }
+
+  /**
+   * 處理飼養數據
+   * @param {string} deviceName - 設備名稱
+   */
+  async processFeedingData(deviceName) {
+    try {
+      // 檢查服務狀態
+      if (!this.isRunning) {
+        return;
+      }
+
+      // 檢查連接狀態
+      if (!this.redisService.isReady() || !this.mqttService.isReady()) {
+        logger.debug('服務未就緒，跳過飼養數據處理');
+        return;
+      }
+
+      // 讀取飼養數據
+      const feedingData = await this.redisService.getFeedingData();
+      
+      if (!feedingData) {
+        logger.debug('未找到飼養數據');
+        return;
+      }
+
+      // 直接打印原始飼養數據
+      console.log('=== 原始飼養數據 ===');
+      console.log(JSON.stringify(feedingData, null, 2));
+      console.log('=== 原始飼養數據結束 ===');
+
+      // 發布飼養數據到MQTT
+      await this.mqttService.publishFeedingData(deviceName, feedingData);
+      
+      logger.info(`成功處理並發布飼養數據，飼養天數: ${feedingData.feedDay}`);
+
+    } catch (error) {
+      logger.error('處理飼養數據時發生錯誤:', error);
+      this.stats.errors++;
+      // 不拋出錯誤，避免影響主要的感測器資料處理流程
     }
   }
 

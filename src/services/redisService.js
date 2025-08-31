@@ -152,6 +152,33 @@ class RedisService {
   }
 
   /**
+   * 讀取飼養數據
+   * @returns {Promise<Object>} 飼養數據物件
+   */
+  async getFeedingData() {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('Redis未連接');
+      }
+
+      // 讀取飼養天數
+      const feedDay = await this.client.get('FeedDay');
+      
+      const feedingData = {
+        feedDay: feedDay || '0',
+        timestamp: new Date().toISOString()
+      };
+
+      logger.info('成功讀取飼養數據:', feedingData);
+      return feedingData;
+
+    } catch (error) {
+      logger.error('讀取飼養數據失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 讀取單個感測器的數值資料
    * @param {string} sensorId - 感測器序號
    * @returns {Promise<Object|null>} 感測器數值資料

@@ -386,6 +386,47 @@ class MqttService {
   }
 
   /**
+   * 發布飼養數據
+   * @param {string} deviceName - 設備名稱
+   * @param {Object} feedingData - 飼養數據
+   */
+  async publishFeedingData(deviceName, feedingData) {
+    try {
+      if (!this.isConnected || !this.client) {
+        throw new Error('MQTT未連接');
+      }
+
+      const topic = `${this.config.DEVICE_TOPIC_PREFIX}/${deviceName}/feeding`;
+      const payload = JSON.stringify({
+        feedDay: feedingData.feedDay,
+        timestamp: feedingData.timestamp
+      });
+
+      // 直接打印要發布的飼養數據
+      console.log('=== 要發布的飼養數據 ===');
+      console.log('主題:', topic);
+      console.log('數據:', JSON.stringify(payload, null, 2));
+      console.log('=== 飼養數據結束 ===');
+
+      return new Promise((resolve, reject) => {
+        this.client.publish(topic, payload, { qos: 1, retain: false }, (error) => {
+          if (error) {
+            logger.error(`發布飼養數據失敗 [${topic}]:`, error);
+            reject(error);
+          } else {
+            logger.info(`成功發布飼養數據到 ${topic}`);
+            resolve();
+          }
+        });
+      });
+
+    } catch (error) {
+      logger.error('發布飼養數據時發生錯誤:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 關閉MQTT連接
    */
   async disconnect() {
