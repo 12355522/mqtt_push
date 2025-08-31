@@ -161,6 +161,11 @@ class MqttPushService {
         return;
       }
 
+      // 直接打印原始感測器數據
+      console.log('=== 原始感測器數據 ===');
+      console.log(JSON.stringify(rawSensorData, null, 2));
+      console.log('=== 原始數據結束 ===');
+
       // 處理感測器資料
       const processedData = this.sensorProcessor.processAndFormat(rawSensorData);
       
@@ -235,6 +240,11 @@ class MqttPushService {
         logger.debug('未找到感測器數值資料');
         return;
       }
+
+      // 直接打印個別感測器數值數據
+      console.log('=== 個別感測器數值數據 ===');
+      console.log(JSON.stringify(sensorValues, null, 2));
+      console.log('=== 個別感測器數值數據結束 ===');
 
       // 發布個別感測器數值到對應主題
       const results = await this.mqttService.publishBatchSensorValues(deviceName, sensorValues);

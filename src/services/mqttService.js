@@ -163,6 +163,12 @@ class MqttService {
       const topic = `${this.config.DEVICE_TOPIC_PREFIX}/${deviceName}/seninf`;
       const payload = JSON.stringify(deviceSensorList);
 
+      // 直接打印要發布的數據
+      console.log('=== 要發布到MQTT的數據 ===');
+      console.log('主題:', topic);
+      console.log('數據:', JSON.stringify(deviceSensorList, null, 2));
+      console.log('=== MQTT發布數據結束 ===');
+
       return new Promise((resolve, reject) => {
         this.client.publish(topic, payload, { qos: 1, retain: false }, (error) => {
           if (error) {
