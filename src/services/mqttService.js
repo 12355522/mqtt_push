@@ -7,7 +7,9 @@ class MqttService {
     this.client = null;
     this.isConnected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.reconnectTimer = null;
+    this.reconnectInterval = 20000; // 20秒重連間隔
+    this.manualReconnectEnabled = false;
   }
 
   /**
@@ -43,6 +45,9 @@ class MqttService {
         this.isConnected = true;
         this.reconnectAttempts = 0;
         
+        // 停止手動重連機制
+        this.stopManualReconnect();
+        
         // 發送在線狀態
         this.publishStatus('online');
       });
@@ -50,26 +55,24 @@ class MqttService {
       this.client.on('error', (error) => {
         logger.error('MQTT連接錯誤:', error);
         this.isConnected = false;
+        this.startManualReconnect();
       });
 
       this.client.on('offline', () => {
         logger.warn('MQTT離線');
         this.isConnected = false;
+        this.startManualReconnect();
       });
 
       this.client.on('reconnect', () => {
         this.reconnectAttempts++;
-        logger.info(`MQTT重新連接中... (嘗試 ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          logger.error('MQTT重連次數超過限制，停止重連');
-          this.client.end();
-        }
+        logger.info(`MQTT重新連接中... (嘗試 ${this.reconnectAttempts})`);
       });
 
       this.client.on('close', () => {
         logger.info('MQTT連接已關閉');
         this.isConnected = false;
+        this.startManualReconnect();
       });
 
       // 等待連接建立
@@ -91,6 +94,67 @@ class MqttService {
 
     } catch (error) {
       logger.error('MQTT初始化失敗:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 啟動手動重新連接
+   */
+  startManualReconnect() {
+    if (this.manualReconnectEnabled || this.reconnectTimer) {
+      return; // 已經在重連中
+    }
+
+    this.manualReconnectEnabled = true;
+    logger.info('啟動手動重新連接機制，每20秒嘗試一次');
+
+    this.reconnectTimer = setInterval(async () => {
+      if (this.isConnected) {
+        logger.info('MQTT已重新連接，停止手動重連機制');
+        this.stopManualReconnect();
+        return;
+      }
+
+      try {
+        logger.info(`嘗試手動重新連接... (第 ${this.reconnectAttempts + 1} 次)`);
+        await this.attemptReconnect();
+      } catch (error) {
+        logger.error('手動重新連接失敗:', error);
+        this.reconnectAttempts++;
+        // 無限重連，不停止重連機制
+      }
+    }, this.reconnectInterval);
+  }
+
+  /**
+   * 停止手動重新連接
+   */
+  stopManualReconnect() {
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.manualReconnectEnabled = false;
+    logger.info('手動重新連接機制已停止');
+  }
+
+  /**
+   * 嘗試重新連接
+   */
+  async attemptReconnect() {
+    try {
+      if (this.client) {
+        // 關閉現有連接
+        this.client.end(true);
+        this.client = null;
+      }
+
+      // 重新建立連接
+      await this.connect();
+      
+    } catch (error) {
+      logger.error('重新連接嘗試失敗:', error);
       throw error;
     }
   }
@@ -431,6 +495,9 @@ class MqttService {
    */
   async disconnect() {
     try {
+      // 停止手動重連機制
+      this.stopManualReconnect();
+      
       if (this.client) {
         // 發送離線狀態
         await this.publishStatus('offline');
